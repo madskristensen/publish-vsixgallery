@@ -15,10 +15,10 @@ Works on both **Linux** and **Windows** runners. Uses `curl` and `bash` — no P
 
 ## Inputs
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| `vsix-file` | ✅ | Path to the `.vsix` file to upload |
-| `readme` | ❌ | URL to a `README.md` for the gallery listing. Defaults to `<branch>/README.md` in the current repo |
+| Input | Description |
+|-------|-------------|
+| `vsix-file` | Path to the `.vsix` file to upload |
+| `readme` | URL to a `README.md` for the gallery listing. Defaults to `<branch>/README.md` in the current repo |
 
 ## Example workflow
 
