@@ -1,6 +1,10 @@
 name: "Publish to Open VSIX Gallery"
 description: "Uploads a VSIX extension to the Open VSIX Gallery (vsixgallery.com)"
 
+branding:
+  icon: 'arrow-up-circle'
+  color: 'purple'
+
 inputs:
   vsix-file:
     description: "Path to the .vsix file to upload"
