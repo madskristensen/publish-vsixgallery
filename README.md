@@ -1,6 +1,6 @@
 # publish-vsixgallery
 
-A GitHub Action to publish Visual Studio extensions (.vsix) to the [Open VSIX Gallery](https://www.vsixgallery.com).
+A GitHub Action to publish **Visual Studio** (the IDE) extensions (.vsix) to the [Open VSIX Gallery](https://www.vsixgallery.com). This is not for VS Code extensions.
 
 Works on both **Linux** and **Windows** runners. Uses `curl` and `bash` — no PowerShell or extra dependencies required.
 
