@@ -93,8 +93,15 @@ runs:
         token_in_url = bool(data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl"))
 
         details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
-        # The gallery serves badges from /badge/<id>.svg (BadgeController).
-        badge_url = f"https://www.vsixgallery.com/badge/{urllib.parse.quote(ext_id)}.svg"
+        # The gallery serves badges from /badge/<id>.svg (BadgeController)
+        # with a 1-hour ResponseCache. Append the version as a cache-buster
+        # so GitHub's image proxy and browsers fetch the freshly published
+        # badge instead of an hour-old cached SVG showing the previous
+        # version number.
+        badge_path = f"/badge/{urllib.parse.quote(ext_id)}.svg"
+        if version:
+            badge_path += f"?v={urllib.parse.quote(version)}"
+        badge_url = f"https://www.vsixgallery.com{badge_path}"
 
         # One value per line. Bash reads it back via mapfile.
         for value in (ext_id, name, version, details_url, badge_url, manage_url, "1" if token_in_url else "0"):
@@ -131,10 +138,11 @@ runs:
 
             # Best-effort run summary. Write directly to $GITHUB_STEP_SUMMARY
             # via an explicit UTF-8 file handle and never let a summary
-            # failure fail the step.
+            # failure fail the step. The badge already shows the version,
+            # so the heading omits it to avoid duplicating the same info.
             if [ -n "$GITHUB_STEP_SUMMARY" ]; then
               {
-                echo "# Published ${name} ${version}"
+                echo "# Published ${name}"
                 echo ""
                 echo "[![Build status](${badge_url})](${details_url})"
                 echo ""
