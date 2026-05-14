@@ -15,11 +15,12 @@ inputs:
   manage-token:
     description: |
       Optional manage token. Acts as a password for the extension's
-      /extension/<id>/manage page (delete, etc.). When omitted, the gallery
-      auto-generates a token on first upload and embeds it in the manage URL
-      printed to the step log and the workflow run summary -- save it from
-      there. When supplied, the manage URL will not contain the token; you'll
-      be prompted for it on the manage page.
+      /extension/<id>/manage page (delete, etc.). When omitted on the very
+      first upload, the gallery auto-generates one and embeds it in the
+      manage URL printed to the step log and the workflow run summary --
+      that's your only chance to save it. On subsequent uploads the manage
+      URL no longer contains the token; you'll be prompted for it on the
+      manage page.
     required: false
 
 runs:
@@ -130,19 +131,20 @@ runs:
             echo "  Extension page: ${details_url}"
             if [ -n "$manage_url" ]; then
               if [ "$token_in_url" = "1" ]; then
-                echo "  Manage link (contains auto-generated token - save it): ${manage_url}"
+                echo "  Manage link (auto-generated token included - save it, it won't be shown again): ${manage_url}"
               else
-                echo "  Manage link: ${manage_url}"
+                echo "  Manage link (you'll be prompted for the manage token): ${manage_url}"
               fi
             fi
 
             # Best-effort run summary. Write directly to $GITHUB_STEP_SUMMARY
             # via an explicit UTF-8 file handle and never let a summary
-            # failure fail the step. The badge already shows the version,
-            # so the heading omits it to avoid duplicating the same info.
+            # failure fail the step. The badge already shows the version so
+            # the heading omits it; "Published to Open VSIX Gallery" matches
+            # the action display name.
             if [ -n "$GITHUB_STEP_SUMMARY" ]; then
               {
-                echo "# Published ${name}"
+                echo "# Published to Open VSIX Gallery"
                 echo ""
                 echo "[![Build status](${badge_url})](${details_url})"
                 echo ""
@@ -151,9 +153,9 @@ runs:
                 echo "- **Extension page:** ${details_url}"
                 if [ -n "$manage_url" ]; then
                   if [ "$token_in_url" = "1" ]; then
-                    echo "- **Manage link (contains auto-generated token - save it):** ${manage_url}"
+                    echo "- **Manage link (auto-generated token included - save it, it won't be shown again):** ${manage_url}"
                   else
-                    echo "- **Manage link:** ${manage_url} (you'll be prompted for your manage token)"
+                    echo "- **Manage link:** ${manage_url} (you'll be prompted for the manage token)"
                   fi
                 fi
                 echo ""
