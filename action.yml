@@ -40,6 +40,12 @@ runs:
         repo="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/"
         readme="${README_URL:-${GITHUB_REF_NAME}/README.md}"
 
+        # Force UTF-8 for all Python invocations so emoji / em-dash in the
+        # summary don't blow up on Windows runners where stdout defaults to
+        # cp1252 (UnicodeEncodeError on '\u2705', '\u2014', etc.).
+        export PYTHONIOENCODING=utf-8
+        export PYTHONUTF8=1
+
         encode() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$1"; }
 
         url="https://www.vsixgallery.com/api/upload?repo=$(encode "$repo")&issuetracker=$(encode "${repo}issues/")&readmeUrl=$(encode "$readme")"
@@ -61,16 +67,24 @@ runs:
         fi
         echo "Upload successful"
 
-        # Best-effort parse of the JSON response so we can write a useful
-        # workflow run summary. Falls back gracefully when fields are missing.
-        if command -v python3 >/dev/null 2>&1; then
-          summary=$(python3 - "$result" <<'PY'
-        import json, os, sys, urllib.parse
+        # Best-effort run summary. We write to $GITHUB_STEP_SUMMARY directly
+        # using an explicit UTF-8 file handle (don't go through stdout) and
+        # never let a summary failure fail the step.
+        if command -v python3 >/dev/null 2>&1 && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+          RESULT_JSON="$result" SUMMARY_PATH="$GITHUB_STEP_SUMMARY" python3 <<'PY' || true
+        import json
+        import os
+        import urllib.parse
+
+        raw = os.environ.get("RESULT_JSON", "")
+        path = os.environ.get("SUMMARY_PATH", "")
+        if not raw or not path:
+            raise SystemExit(0)
 
         try:
-            data = json.loads(sys.argv[1])
+            data = json.loads(raw)
         except Exception:
-            sys.exit(0)
+            raise SystemExit(0)
 
         ext_id = data.get("ID") or data.get("id") or ""
         name = data.get("Name") or data.get("name") or ext_id
@@ -79,32 +93,21 @@ runs:
         token_in_url = data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl") or False
 
         if not ext_id:
-            sys.exit(0)
+            raise SystemExit(0)
 
         details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
         badge_md = f"[![Build status](https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg)]({details_url})"
 
-        lines = []
-        lines.append(f"## \u2705 Published `{name}` {version}".rstrip())
-        lines.append("")
+        lines = [f"## Published `{name}` {version}".rstrip(), ""]
         lines.append(f"- **Extension page:** {details_url}")
         if manage_url:
             if token_in_url:
-                lines.append(f"- **Manage link (contains auto-generated token \u2014 save it):** {manage_url}")
+                lines.append(f"- **Manage link (contains auto-generated token - save it):** {manage_url}")
             else:
                 lines.append(f"- **Manage link:** {manage_url} (you'll be prompted for your manage token)")
-        lines.append("")
-        lines.append("### Badge")
-        lines.append("")
-        lines.append("```markdown")
-        lines.append(badge_md)
-        lines.append("```")
+        lines += ["", "### Badge", "", "```markdown", badge_md, "```", ""]
 
-        print("\n".join(lines))
+        with open(path, "a", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines))
         PY
-          )
-
-          if [ -n "$summary" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
-            printf "%s\n" "$summary" >> "$GITHUB_STEP_SUMMARY"
-          fi
         fi
