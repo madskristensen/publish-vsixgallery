@@ -13,7 +13,7 @@ Works on both **Linux** and **Windows** runners. Uses `curl` and `bash` — no P
     vsix-file: path/to/MyExtension.vsix
 ```
 
-After a successful upload the action writes a workflow run summary containing the extension page link, a Markdown badge snippet, and a **manage link** that lets you delete the extension yourself from the gallery.
+After a successful upload the action writes a workflow run summary containing the gallery badge, the extension page link, and a **manage link** that lets you delete the extension yourself from the gallery.
 
 ## Inputs
 
@@ -27,8 +27,9 @@ After a successful upload the action writes a workflow run summary containing th
 
 Every extension can be deleted from its gallery manage page (`https://www.vsixgallery.com/extension/<id>/manage`). Access is gated by a per-extension **manage token**:
 
-- **Don't pass `manage-token`:** the gallery generates a token on the first upload and embeds it in the manage URL printed in the workflow run summary. **Save that URL** — the token isn't shown anywhere else.
-- **Pass `manage-token`:** the gallery uses the value you supply (typically a GitHub Actions secret) and the manage link in the run summary will *not* contain the token. You'll be prompted for it on the manage page. Re-publishing later requires the same token.
+- **First upload, no `manage-token` supplied:** the gallery auto-generates a token and embeds it in the manage URL printed in the workflow run summary. **Save that URL** — the token isn't shown anywhere else.
+- **First upload, `manage-token` supplied:** the gallery uses the value you supply (typically a GitHub Actions secret). The manage URL won't contain it.
+- **Every later upload:** the manage URL never contains the token, regardless of whether you pass `manage-token`. The server only stores the hash, so it can't reissue the plaintext value. Visit the manage page and paste your saved token to delete the extension.
 
 The token is always masked in workflow logs.
 
