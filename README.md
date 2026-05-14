@@ -25,11 +25,12 @@ After a successful upload the action writes a workflow run summary containing th
 
 ## Manage tokens
 
-Every extension can be deleted from its gallery manage page (`https://www.vsixgallery.com/extension/<id>/manage`). Access is gated by a per-extension **manage token**:
+Every extension can be deleted from its gallery manage page (`https://www.vsixgallery.com/extension/<id>/manage`). Access is gated by a per-extension **manage token** — it's a soft "don't let randos delete my listing" speed bump, not strong authentication.
 
 - **First upload, no `manage-token` supplied:** the gallery auto-generates a token and embeds it in the manage URL printed in the workflow run summary. **Save that URL** — the token isn't shown anywhere else.
 - **First upload, `manage-token` supplied:** the gallery uses the value you supply (typically a GitHub Actions secret). The manage URL won't contain it.
-- **Every later upload:** the manage URL never contains the token, regardless of whether you pass `manage-token`. The server only stores the hash, so it can't reissue the plaintext value. Visit the manage page and paste your saved token to delete the extension.
+- **Republish, no `manage-token`:** the existing token stays in place. The manage URL won't contain it.
+- **Republish, `manage-token` supplied:** the value you pass becomes the new manage token, replacing whatever was on file. Lost your old token? Just republish with a fresh one and the new value takes over.
 
 The token is always masked in workflow logs.
 
