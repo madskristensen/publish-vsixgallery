@@ -92,9 +92,10 @@ runs:
         token_in_url = bool(data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl"))
 
         details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
-        badge_url = f"https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg"
+        # The gallery serves badges from /badge/<id>.svg (BadgeController).
+        badge_url = f"https://www.vsixgallery.com/badge/{urllib.parse.quote(ext_id)}.svg"
 
-        # Tab-separated, one value per line. Bash reads it back via mapfile.
+        # One value per line. Bash reads it back via mapfile.
         for value in (ext_id, name, version, details_url, badge_url, manage_url, "1" if token_in_url else "0"):
             print(value)
         PY
