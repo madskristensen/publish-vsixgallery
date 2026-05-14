@@ -68,17 +68,18 @@ runs:
         echo "Upload successful"
 
         # Parse the upload response once and reuse it for both the step log
-        # and the workflow summary. We call python3 with stdin since the
-        # response can contain arbitrary characters that aren't safe to pass
-        # through env vars or argv on every shell.
+        # and the workflow summary. Pass the JSON via env var (UPLOAD_JSON)
+        # rather than stdin so the heredoc can be column-zero — Python module
+        # bodies can't have leading whitespace.
         if command -v python3 >/dev/null 2>&1; then
-          parsed=$(printf '%s' "$result" | python3 - <<'PY' || true
+          parsed=$(UPLOAD_JSON="$result" python3 <<'PY'
         import json
+        import os
         import sys
         import urllib.parse
 
         try:
-            data = json.load(sys.stdin)
+            data = json.loads(os.environ.get("UPLOAD_JSON", ""))
         except Exception:
             sys.exit(0)
 
@@ -99,9 +100,13 @@ runs:
         for value in (ext_id, name, version, details_url, badge_url, manage_url, "1" if token_in_url else "0"):
             print(value)
         PY
-          )
+        )
 
-          if [ -n "$parsed" ]; then
+          # Fail loudly if the response couldn't be parsed — silent failure
+          # here is what previously left the run summary empty.
+          if [ -z "$parsed" ]; then
+            echo "::warning::Could not parse upload response; skipping summary."
+          else
             mapfile -t fields <<< "$parsed"
             ext_id="${fields[0]:-}"
             name="${fields[1]:-}"
