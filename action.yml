@@ -17,9 +17,9 @@ inputs:
       Optional manage token. Acts as a password for the extension's
       /extension/<id>/manage page (delete, etc.). When omitted, the gallery
       auto-generates a token on first upload and embeds it in the manage URL
-      shown in the workflow run summary -- save it from there. When supplied,
-      the manage URL in the summary will not contain the token; you'll be
-      prompted for it on the manage page.
+      printed to the step log and the workflow run summary -- save it from
+      there. When supplied, the manage URL will not contain the token; you'll
+      be prompted for it on the manage page.
     required: false
 
 runs:
@@ -67,60 +67,85 @@ runs:
         fi
         echo "Upload successful"
 
-        # Best-effort run summary. We write to $GITHUB_STEP_SUMMARY directly
-        # using an explicit UTF-8 file handle (don't go through stdout) and
-        # never let a summary failure fail the step.
-        if command -v python3 >/dev/null 2>&1 && [ -n "$GITHUB_STEP_SUMMARY" ]; then
-          RESULT_JSON="$result" SUMMARY_PATH="$GITHUB_STEP_SUMMARY" python3 <<'PY' || true
+        # Parse the upload response once and reuse it for both the step log
+        # and the workflow summary. We call python3 with stdin since the
+        # response can contain arbitrary characters that aren't safe to pass
+        # through env vars or argv on every shell.
+        if command -v python3 >/dev/null 2>&1; then
+          parsed=$(printf '%s' "$result" | python3 - <<'PY' || true
         import json
-        import os
+        import sys
         import urllib.parse
 
-        raw = os.environ.get("RESULT_JSON", "")
-        path = os.environ.get("SUMMARY_PATH", "")
-        if not raw or not path:
-            raise SystemExit(0)
-
         try:
-            data = json.loads(raw)
+            data = json.load(sys.stdin)
         except Exception:
-            raise SystemExit(0)
+            sys.exit(0)
 
         ext_id = data.get("ID") or data.get("id") or ""
+        if not ext_id:
+            sys.exit(0)
+
         name = data.get("Name") or data.get("name") or ext_id
         version = data.get("Version") or data.get("version") or ""
         manage_url = data.get("ManageUrl") or data.get("manageUrl") or ""
-        token_in_url = data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl") or False
-
-        if not ext_id:
-            raise SystemExit(0)
+        token_in_url = bool(data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl"))
 
         details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
         badge_url = f"https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg"
 
-        title = f"{name} {version}".strip()
-
-        lines = []
-        # Big heading + rendered badge image right under it (matches the
-        # look of popular test-runner summaries).
-        lines.append(f"# Published {title}")
-        lines.append("")
-        lines.append(f"[![Build status]({badge_url})]({details_url})")
-        lines.append("")
-        # Collapsible details with the useful links.
-        lines.append("<details><summary>Expand for details</summary>")
-        lines.append("")
-        lines.append(f"- **Extension page:** {details_url}")
-        if manage_url:
-            if token_in_url:
-                lines.append(f"- **Manage link (contains auto-generated token - save it):** {manage_url}")
-            else:
-                lines.append(f"- **Manage link:** {manage_url} (you'll be prompted for your manage token)")
-        lines.append("")
-        lines.append("</details>")
-        lines.append("")
-
-        with open(path, "a", encoding="utf-8", newline="\n") as f:
-            f.write("\n".join(lines))
+        # Tab-separated, one value per line. Bash reads it back via mapfile.
+        for value in (ext_id, name, version, details_url, badge_url, manage_url, "1" if token_in_url else "0"):
+            print(value)
         PY
+          )
+
+          if [ -n "$parsed" ]; then
+            mapfile -t fields <<< "$parsed"
+            ext_id="${fields[0]:-}"
+            name="${fields[1]:-}"
+            version="${fields[2]:-}"
+            details_url="${fields[3]:-}"
+            badge_url="${fields[4]:-}"
+            manage_url="${fields[5]:-}"
+            token_in_url="${fields[6]:-0}"
+
+            # Echo the useful URLs into the step log so they show up in the
+            # collapsed step output without having to open the run summary.
+            echo ""
+            echo "Published ${name} ${version}"
+            echo "  Extension page: ${details_url}"
+            if [ -n "$manage_url" ]; then
+              if [ "$token_in_url" = "1" ]; then
+                echo "  Manage link (contains auto-generated token - save it): ${manage_url}"
+              else
+                echo "  Manage link: ${manage_url}"
+              fi
+            fi
+
+            # Best-effort run summary. Write directly to $GITHUB_STEP_SUMMARY
+            # via an explicit UTF-8 file handle and never let a summary
+            # failure fail the step.
+            if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+              {
+                echo "# Published ${name} ${version}"
+                echo ""
+                echo "[![Build status](${badge_url})](${details_url})"
+                echo ""
+                echo "<details><summary>Expand for details</summary>"
+                echo ""
+                echo "- **Extension page:** ${details_url}"
+                if [ -n "$manage_url" ]; then
+                  if [ "$token_in_url" = "1" ]; then
+                    echo "- **Manage link (contains auto-generated token - save it):** ${manage_url}"
+                  else
+                    echo "- **Manage link:** ${manage_url} (you'll be prompted for your manage token)"
+                  fi
+                fi
+                echo ""
+                echo "</details>"
+                echo ""
+              } >> "$GITHUB_STEP_SUMMARY" || true
+            fi
+          fi
         fi
