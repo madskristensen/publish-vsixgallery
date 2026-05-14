@@ -12,6 +12,15 @@ inputs:
   readme:
     description: "URL to a README.md. Defaults to <branch>/README.md in the current repo"
     required: false
+  manage-token:
+    description: |
+      Optional manage token. Acts as a password for the extension's
+      /extension/<id>/manage page (delete, etc.). When omitted, the gallery
+      auto-generates a token on first upload and embeds it in the manage URL
+      shown in the workflow run summary -- save it from there. When supplied,
+      the manage URL in the summary will not contain the token; you'll be
+      prompted for it on the manage page.
+    required: false
 
 runs:
   using: "composite"
@@ -21,6 +30,7 @@ runs:
       env:
         VSIX_FILE: ${{ inputs.vsix-file }}
         README_URL: ${{ inputs.readme }}
+        MANAGE_TOKEN: ${{ inputs.manage-token }}
       run: |
         if [ ! -f "$VSIX_FILE" ]; then
           echo "::error::VSIX file not found: $VSIX_FILE"
@@ -34,9 +44,67 @@ runs:
 
         url="https://www.vsixgallery.com/api/upload?repo=$(encode "$repo")&issuetracker=$(encode "${repo}issues/")&readmeUrl=$(encode "$readme")"
 
+        # Build curl args. Always mask the manage token in logs (whether the
+        # publisher supplied one or the server generated one and returned it
+        # in the manage URL).
+        curl_args=(--silent --show-error --fail-with-body -F "file=@${VSIX_FILE}")
+
+        if [ -n "$MANAGE_TOKEN" ]; then
+          echo "::add-mask::$MANAGE_TOKEN"
+          curl_args+=(-H "X-Manage-Token: $MANAGE_TOKEN")
+        fi
+
         echo "Uploading $VSIX_FILE..."
-        if ! result=$(curl --silent --show-error --fail-with-body -F "file=@${VSIX_FILE}" "$url" 2>&1); then
+        if ! result=$(curl "${curl_args[@]}" "$url" 2>&1); then
           echo "::error::Upload failed: $result"
           exit 1
         fi
         echo "Upload successful"
+
+        # Best-effort parse of the JSON response so we can write a useful
+        # workflow run summary. Falls back gracefully when fields are missing.
+        if command -v python3 >/dev/null 2>&1; then
+          summary=$(python3 - "$result" <<'PY'
+        import json, os, sys, urllib.parse
+
+        try:
+            data = json.loads(sys.argv[1])
+        except Exception:
+            sys.exit(0)
+
+        ext_id = data.get("ID") or data.get("id") or ""
+        name = data.get("Name") or data.get("name") or ext_id
+        version = data.get("Version") or data.get("version") or ""
+        manage_url = data.get("ManageUrl") or data.get("manageUrl") or ""
+        token_in_url = data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl") or False
+
+        if not ext_id:
+            sys.exit(0)
+
+        details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
+        badge_md = f"[![Build status](https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg)]({details_url})"
+
+        lines = []
+        lines.append(f"## \u2705 Published `{name}` {version}".rstrip())
+        lines.append("")
+        lines.append(f"- **Extension page:** {details_url}")
+        if manage_url:
+            if token_in_url:
+                lines.append(f"- **Manage link (contains auto-generated token \u2014 save it):** {manage_url}")
+            else:
+                lines.append(f"- **Manage link:** {manage_url} (you'll be prompted for your manage token)")
+        lines.append("")
+        lines.append("### Badge")
+        lines.append("")
+        lines.append("```markdown")
+        lines.append(badge_md)
+        lines.append("```")
+
+        print("\n".join(lines))
+        PY
+          )
+
+          if [ -n "$summary" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            printf "%s\n" "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        fi
