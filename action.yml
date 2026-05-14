@@ -40,9 +40,9 @@ runs:
         repo="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/"
         readme="${README_URL:-${GITHUB_REF_NAME}/README.md}"
 
-        # Force UTF-8 for all Python invocations so emoji / em-dash in the
-        # summary don't blow up on Windows runners where stdout defaults to
-        # cp1252 (UnicodeEncodeError on '\u2705', '\u2014', etc.).
+        # Force UTF-8 for all Python invocations so non-ASCII characters in
+        # the summary don't blow up on Windows runners where stdout defaults
+        # to cp1252 (UnicodeEncodeError on '\u2705', '\u2014', etc.).
         export PYTHONIOENCODING=utf-8
         export PYTHONUTF8=1
 
@@ -96,16 +96,29 @@ runs:
             raise SystemExit(0)
 
         details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
-        badge_md = f"[![Build status](https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg)]({details_url})"
+        badge_url = f"https://www.vsixgallery.com/extensions/{urllib.parse.quote(ext_id)}/badge.svg"
 
-        lines = [f"## Published `{name}` {version}".rstrip(), ""]
+        title = f"{name} {version}".strip()
+
+        lines = []
+        # Big heading + rendered badge image right under it (matches the
+        # look of popular test-runner summaries).
+        lines.append(f"# Published {title}")
+        lines.append("")
+        lines.append(f"[![Build status]({badge_url})]({details_url})")
+        lines.append("")
+        # Collapsible details with the useful links.
+        lines.append("<details><summary>Expand for details</summary>")
+        lines.append("")
         lines.append(f"- **Extension page:** {details_url}")
         if manage_url:
             if token_in_url:
                 lines.append(f"- **Manage link (contains auto-generated token - save it):** {manage_url}")
             else:
                 lines.append(f"- **Manage link:** {manage_url} (you'll be prompted for your manage token)")
-        lines += ["", "### Badge", "", "```markdown", badge_md, "```", ""]
+        lines.append("")
+        lines.append("</details>")
+        lines.append("")
 
         with open(path, "a", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(lines))
