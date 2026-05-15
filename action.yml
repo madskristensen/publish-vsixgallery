@@ -144,7 +144,7 @@ runs:
             # the action display name.
             if [ -n "$GITHUB_STEP_SUMMARY" ]; then
               {
-                echo "# Published to Open VSIX Gallery"
+                echo "## Published to Open VSIX Gallery"
                 echo ""
                 echo "[![Build status](${badge_url})](${details_url})"
                 echo ""
