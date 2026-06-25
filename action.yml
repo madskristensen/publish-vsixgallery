@@ -9,6 +9,12 @@ inputs:
   vsix-file:
     description: "Path to the .vsix file to upload"
     required: true
+  gallery-url:
+    description: |
+      Base URL of the Open VSIX Gallery to publish to. Override this if you
+      host your own instance of the gallery. No trailing slash.
+    required: false
+    default: "https://www.vsixgallery.com"
   readme:
     description: "URL to a README.md. Defaults to <branch>/README.md in the current repo"
     required: false
@@ -32,6 +38,7 @@ runs:
         VSIX_FILE: ${{ inputs.vsix-file }}
         README_URL: ${{ inputs.readme }}
         MANAGE_TOKEN: ${{ inputs.manage-token }}
+        GALLERY_URL: ${{ inputs.gallery-url }}
       run: |
         if [ ! -f "$VSIX_FILE" ]; then
           echo "::error::VSIX file not found: $VSIX_FILE"
@@ -41,6 +48,10 @@ runs:
         repo="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/"
         readme="${README_URL:-${GITHUB_REF_NAME}/README.md}"
 
+        # Strip any trailing slash so we can safely append paths.
+        gallery="${GALLERY_URL:-https://www.vsixgallery.com}"
+        gallery="${gallery%/}"
+
         # Force UTF-8 for all Python invocations so non-ASCII characters in
         # the summary don't blow up on Windows runners where stdout defaults
         # to cp1252 (UnicodeEncodeError on '\u2705', '\u2014', etc.).
@@ -49,7 +60,7 @@ runs:
 
         encode() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$1"; }
 
-        url="https://www.vsixgallery.com/api/upload?repo=$(encode "$repo")&issuetracker=$(encode "${repo}issues/")&readmeUrl=$(encode "$readme")"
+        url="${gallery}/api/upload?repo=$(encode "$repo")&issuetracker=$(encode "${repo}issues/")&readmeUrl=$(encode "$readme")"
 
         # Build curl args. Always mask the manage token in logs (whether the
         # publisher supplied one or the server generated one and returned it
@@ -73,7 +84,7 @@ runs:
         # rather than stdin so the heredoc can be column-zero — Python module
         # bodies can't have leading whitespace.
         if command -v python3 >/dev/null 2>&1; then
-          parsed=$(UPLOAD_JSON="$result" python3 <<'PY'
+          parsed=$(UPLOAD_JSON="$result" GALLERY_URL="$gallery" python3 <<'PY'
         import json
         import os
         import sys
@@ -93,7 +104,9 @@ runs:
         manage_url = data.get("ManageUrl") or data.get("manageUrl") or ""
         token_in_url = bool(data.get("ManageTokenIncludedInUrl") or data.get("manageTokenIncludedInUrl"))
 
-        details_url = f"https://www.vsixgallery.com/extension/{ext_id}"
+        gallery = (os.environ.get("GALLERY_URL") or "https://www.vsixgallery.com").rstrip("/")
+
+        details_url = f"{gallery}/extension/{ext_id}"
         # The gallery serves badges from /badge/<id>.svg (BadgeController)
         # with a 1-hour ResponseCache. Append the version as a cache-buster
         # so GitHub's image proxy and browsers fetch the freshly published
@@ -102,7 +115,7 @@ runs:
         badge_path = f"/badge/{urllib.parse.quote(ext_id)}.svg"
         if version:
             badge_path += f"?v={urllib.parse.quote(version)}"
-        badge_url = f"https://www.vsixgallery.com{badge_path}"
+        badge_url = f"{gallery}{badge_path}"
 
         # One value per line. Bash reads it back via mapfile.
         for value in (ext_id, name, version, details_url, badge_url, manage_url, "1" if token_in_url else "0"):

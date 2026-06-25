@@ -22,6 +22,7 @@ After a successful upload the action writes a workflow run summary containing th
 | `vsix-file` | Path to the `.vsix` file to upload |
 | `readme` | URL to a `README.md` for the gallery listing. Defaults to `<branch>/README.md` in the current repo |
 | `manage-token` | Optional. Acts as a password for the extension's `/extension/<id>/manage` page (used to delete the extension). See [Manage tokens](#manage-tokens) below. |
+| `gallery-url` | Optional. Base URL of the gallery to publish to. Defaults to `https://www.vsixgallery.com`. Override this if you host your own instance of the Open VSIX Gallery. |
 
 ## Manage tokens
 
