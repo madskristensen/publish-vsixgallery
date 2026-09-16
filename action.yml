@@ -139,7 +139,6 @@ runs:
                 echo ""
                 echo "</details>"
                 echo ""
-                VALIDATION_BASE64="$validation_base64" python3 "$ACTION_PATH/scripts/process-upload-response.py" summary
               } >> "$GITHUB_STEP_SUMMARY" || true
             fi
           fi

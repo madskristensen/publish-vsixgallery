@@ -13,7 +13,7 @@ Works on both **Linux** and **Windows** runners. Uses `curl` and `bash` — no P
     vsix-file: path/to/MyExtension.vsix
 ```
 
-After a successful upload the action writes a workflow run summary containing the gallery badge, the extension page link, and a **manage link** that lets you delete the extension yourself from the gallery. Quality warnings returned by the gallery are shown as workflow annotations and in a **Validation warnings** summary section. Warnings do not fail the publish step.
+After a successful upload the action writes a workflow run summary containing the gallery badge, the extension page link, and a **manage link** that lets you delete the extension yourself from the gallery. Quality warnings returned by the gallery are shown as workflow annotations. Warnings do not fail the publish step.
 
 ## Inputs
 
